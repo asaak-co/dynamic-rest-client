@@ -21,7 +21,7 @@ class DRESTQuery(object):
         self.excludes = excludes or []
         self.orders = orders or []
         self.extras = extras or {}
-        self.with_index = with_index or {}
+        self.with_index = with_index or False
         # disable sideloading for easy loading
         self.extras["sideloading"] = "false"
         # enable debug for inline types
@@ -129,6 +129,8 @@ class DRESTQuery(object):
             ):
                 if value != new_value:
                     new_value = list(set(new_value + list(value)))
+            else:
+                new_value = value
             new_data[key] = new_value
         return DRESTQuery(**new_data)
 
@@ -143,9 +145,10 @@ class DRESTQuery(object):
         data = resource.request("get", params=params)
         meta = data.get("meta", {})
         pages = meta.get("total_pages", 1)
-        self._meta = meta
+
         self._data = self._load(data)
-        self._total = meta.get("total_results", len(self._data))
+        if meta or self._total is None:
+            self._total = meta.get("total_results", len(self._data))
         self._pages = pages
         self._index = 0
 
@@ -156,24 +159,30 @@ class DRESTQuery(object):
         return self._copy(with_index=True)
 
     def __iter__(self):
-        # TODO: implement __getitem__ for random access
-        params = self._get_params()
-        self._get_page(params)
-        index = 0
-        while True:
-            if self._index == len(self._data):
-                # end of page
-                if self._page == self._pages:
-                    # end of results
-                    self._reset()
-                    raise StopIteration()
-                self._get_page(params)
+        self._params = self._get_params()
+        self._total = None
+        self._get_page(self._params)
+        self._total_index = 0
+        return self
 
-            item = self._data[self._index]
-            if self.with_index:
-                yield (item, index, self._total)
-            else:
-                yield item
-            index += 1
-            self._index += 1
+    def __next__(self):
+        # TODO: implement __getitem__ for random access
+        if self._index == len(self._data):
+            # end of page
+            if self._page == self._pages:
+                # end of results
+                self._reset()
+                raise StopIteration()
+            self._get_page(self._params)
+
+        item = self._data[self._index]
+        total_index = self._total_index
+
+        self._index += 1
+        self._total_index += 1
+
+        if self.with_index:
+            return (item, total_index, self._total)
+        else:
+            return item
 
