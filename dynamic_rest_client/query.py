@@ -152,7 +152,7 @@ class DRESTQuery(object):
     def _load(self, data):
         return self.resource.load(unpack(data))
 
-    def with_index(self):
+    def indexed(self):
         return self._copy(with_index=True)
 
     def __iter__(self):
