@@ -12,6 +12,7 @@ class DRESTResource(object):
         client: a DRESTClient
         name: a resource's name
     """
+
     def __init__(self, client, name):
         self.name = inflection.underscore(name)
         self._client = client
@@ -22,7 +23,7 @@ class DRESTResource(object):
     def __call__(self, **kwargs):
         return DRESTRecord(resource=self, **kwargs)
 
-    def request(self, method, id=None, params=None, data=None):
+    def request(self, method, id=None, field=None, params=None, data=None):
         """Perform a request against this resource.
 
         Arguments:
@@ -33,14 +34,11 @@ class DRESTResource(object):
         """
         name = self.name
         mocks = self._client.mocks.get(name)
-        if method.lower() == 'get' and mocks:
+        if method.lower() == "get" and mocks:
             return {name: mocks}
 
         return self._client.request(
-            method,
-            self._get_url(id),
-            params=params,
-            data=data
+            method, self._get_url(id, field), params=params, data=data
         )
 
     def load(self, data, depth=0):
@@ -52,19 +50,19 @@ class DRESTResource(object):
             Array of DRESTRecord or single DRESTRecord.
         """
         if isinstance(data, dict):
-            meta = data.get('_meta', {})
+            meta = data.get("_meta", {})
             # get type from metadata
-            name = meta.get('type')
+            name = meta.get("type")
             if not depth and not name:
                 # fallback to current name if at depth 0
                 name = self.name
-            pk = meta.get('id', data.get('id'))
+            pk = meta.get("id", data.get("id"))
             if name and pk:
                 # load from dict
-                data['id'] = pk
+                data["id"] = pk
                 if name == self.name:
                     for key, value in data.items():
-                        loaded = self.load(value, depth+1)
+                        loaded = self.load(value, depth + 1)
                         if value != loaded:
                             data[key] = loaded
                     return DRESTRecord(resource=self, **data)
@@ -92,5 +90,5 @@ class DRESTResource(object):
     def __getattr__(self, value):
         return getattr(DRESTQuery(self), value)
 
-    def _get_url(self, id=None):
-        return '%s%s' % (self.name, '/%s' % id if id else '')
+    def _get_url(self, id=None, field=None):
+        return "/".join([x for x in [self.name, id, field] if x])
