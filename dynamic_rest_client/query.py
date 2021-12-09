@@ -5,7 +5,6 @@ from six import string_types
 
 
 class DRESTQuery(object):
-
     def __init__(
         self,
         resource=None,
@@ -13,7 +12,8 @@ class DRESTQuery(object):
         orders=None,
         includes=None,
         excludes=None,
-        extras=None
+        extras=None,
+        with_index=None,
     ):
         self.resource = resource
         self.filters = filters or {}
@@ -21,14 +21,15 @@ class DRESTQuery(object):
         self.excludes = excludes or []
         self.orders = orders or []
         self.extras = extras or {}
+        self.with_index = with_index or {}
         # disable sideloading for easy loading
-        self.extras['sideloading'] = 'false'
+        self.extras["sideloading"] = "false"
         # enable debug for inline types
-        self.extras['debug'] = 'true'
+        self.extras["debug"] = "true"
         self._reset()
 
     def __repr__(self):
-        return 'Query: %s' % self.resource.name
+        return "Query: %s" % self.resource.name
 
     def all(self):
         return self._copy()
@@ -44,10 +45,8 @@ class DRESTQuery(object):
         l = self.list()
         return l[-1] if l else None
 
-    def map(self, field='id'):
-        return dict((
-            (getattr(k, field), k) for k in self.list()
-        ))
+    def map(self, field="id"):
+        return dict(((getattr(k, field), k) for k in self.list()))
 
     def get(self, id):
         """Returns a single record by ID.
@@ -56,14 +55,14 @@ class DRESTQuery(object):
             id: a resource ID
         """
         resource = self.resource
-        response = resource.request('get', id=id, params=self._get_params())
+        response = resource.request("get", id=id, params=self._get_params())
         return self._load(response)
 
     def filter(self, **kwargs):
         return self._copy(filters=kwargs)
 
     def exclude(self, **kwargs):
-        filters = dict(('-' + k, v) for k, v in kwargs.items())
+        filters = dict(("-" + k, v) for k, v in kwargs.items())
         return self._copy(filters=filters)
 
     def including(self, *args):
@@ -90,17 +89,17 @@ class DRESTQuery(object):
 
         params = {}
         for key, value in filters.items():
-            filter_key = 'filter{%s}' % key.replace('__', '.')
+            filter_key = "filter{%s}" % key.replace("__", ".")
             params[filter_key] = value
 
         if includes:
-            params['include[]'] = includes
+            params["include[]"] = includes
 
         if excludes:
-            params['exclude[]'] = excludes
+            params["exclude[]"] = excludes
 
         if orders:
-            params['sort[]'] = orders
+            params["sort[]"] = orders
 
         for key, value in extras.items():
             params[key] = value
@@ -118,20 +117,15 @@ class DRESTQuery(object):
 
     def _copy(self, **kwargs):
         data = self.__dict__
-        new_data = {
-            k: copy(v)
-            for k, v in data.items()
-            if not k.startswith('_')
-        }
+        new_data = {k: copy(v) for k, v in data.items() if not k.startswith("_")}
         for key, value in kwargs.items():
             new_value = data.get(key)
             if isinstance(new_value, dict):
                 if value != new_value:
                     new_value = copy(new_value)
                     new_value.update(value)
-            elif (
-                isinstance(new_value, (list, tuple)) and
-                not isinstance(new_value, string_types)
+            elif isinstance(new_value, (list, tuple)) and not isinstance(
+                new_value, string_types
             ):
                 if value != new_value:
                     new_value = list(set(new_value + list(value)))
@@ -145,22 +139,27 @@ class DRESTQuery(object):
             self._page += 1
 
         resource = self.resource
-        params['page'] = self._page
-        data = resource.request('get', params=params)
-        meta = data.get('meta', {})
-        pages = meta.get('total_pages', 1)
-
+        params["page"] = self._page
+        data = resource.request("get", params=params)
+        meta = data.get("meta", {})
+        pages = meta.get("total_pages", 1)
+        self._meta = meta
         self._data = self._load(data)
+        self._total = meta.get("total_results", len(self._data))
         self._pages = pages
         self._index = 0
 
     def _load(self, data):
         return self.resource.load(unpack(data))
 
+    def with_index(self):
+        return self._copy(with_index=True)
+
     def __iter__(self):
         # TODO: implement __getitem__ for random access
         params = self._get_params()
         self._get_page(params)
+        index = 0
         while True:
             if self._index == len(self._data):
                 # end of page
@@ -170,5 +169,11 @@ class DRESTQuery(object):
                     raise StopIteration()
                 self._get_page(params)
 
-            yield self._data[self._index]
+            item = self._data[self._index]
+            if self.with_index:
+                yield (item, index, self._total)
+            else:
+                yield item
+            index += 1
             self._index += 1
+
