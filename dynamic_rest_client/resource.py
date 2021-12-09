@@ -59,7 +59,7 @@ class DRESTResource(object):
                 self_link = links.get("self", None)
                 if self_link:
                     parts = self_link.split("/")
-                    if len(parts >= 3):
+                    if len(parts) >= 3:
                         name = parts[-3]
 
             if not depth and not name:
