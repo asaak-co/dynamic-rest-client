@@ -4,7 +4,7 @@ from setuptools import find_packages, setup
 NAME = "dynamic-rest-client"
 DESCRIPTION = "Python client for dynamic-rest with minimal dependencies"
 URL = "http://github.com/AltSchool/dynamic-rest-client"
-VERSION = "1.1.9"
+VERSION = "1.2.0"
 SCRIPTS = []
 
 setup(

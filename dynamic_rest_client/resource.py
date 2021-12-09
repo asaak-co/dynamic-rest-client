@@ -53,6 +53,15 @@ class DRESTResource(object):
             meta = data.get("_meta", {})
             # get type from metadata
             name = meta.get("type")
+            if not name:
+                # get name from links.self
+                links = data.get("links", {})
+                self_link = links.get("self", None)
+                if self_link:
+                    parts = self_link.split("/")
+                    if len(parts >= 3):
+                        name = parts[-3]
+
             if not depth and not name:
                 # fallback to current name if at depth 0
                 name = self.name
